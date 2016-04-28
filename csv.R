@@ -1,3 +1,4 @@
+source('generator.R')
 
 iter_csv <- function(file, chunksize, header = TRUE, ...) {
     # TODO: use a connection instead of filename
@@ -19,22 +20,18 @@ iter_csv <- function(file, chunksize, header = TRUE, ...) {
 
     chunksize <- as.integer(chunksize)
 
-    function() {
-        x <- tryCatch({
-                 reader(chunksize, ix)
+    set_iter(function() {
+        rows <- tryCatch({
+                 x <- reader(chunksize, ix)
+                 colnames(x) <- header
+                 x
              }, error = function(e) {
-                 function() { stop('EOF', call. = FALSE) }
+                 generator_exit()
              })
 
-        if (is.function(x)) {
-            # Raise error
-            x()
-        }
-
         ix <<- ix + chunksize
-        colnames(x) <- header
-        x
-    }
+        rows
+    })
 }
 
 
@@ -43,11 +40,10 @@ write.csv(data.frame(x = 1:3, y = letters[1:3]), 'sample.csv', row.names = FALSE
 
 a <- iter_csv('sample.csv', chunksize = 1L) # most simple case
 
-stopifnot( a() == data.frame(x = 1L, y = 'a') )
-stopifnot( a() == data.frame(x = 2L, y = 'b') )
-stopifnot( a() == data.frame(x = 3L, y = 'c') )
-eof <- try(a(), silent = TRUE)
-stopifnot( class(eof) == 'try-error' )
+stopifnot( nxt(a) == data.frame(x = 1L, y = 'a') )
+stopifnot( nxt(a) == data.frame(x = 2L, y = 'b') )
+stopifnot( nxt(a) == data.frame(x = 3L, y = 'c') )
+stopifnot( is.null(term <- nxt(a)))
 
 
 # Example
@@ -64,6 +60,6 @@ summation <- function(x, colname) {
 }
 
 
-a <- iter_csv(f, chunksize = 1L) # most simple case
-summation(a, 'x')
+a <- iter_csv('sample.csv', chunksize = 1L) # most simple case
+stopifnot( summation(a, 'x') == sum(1:3) )
 
